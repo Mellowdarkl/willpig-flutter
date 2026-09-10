@@ -1,0 +1,2 @@
+[functions.legacy-mobile-login]
+verify_jwt = false

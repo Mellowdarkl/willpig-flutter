@@ -7,9 +7,46 @@ class AuthService {
   Future<AuthSession> login({
     required String email,
     required String password,
-  }) async => _from(
-    await _client.auth.signInWithPassword(email: email, password: password),
-  );
+  }) async {
+    try {
+      return await _from(
+        await _client.auth.signInWithPassword(email: email, password: password),
+      );
+    } on AuthException catch (error) {
+      // Solo intentamos la migración después de la respuesta normal de GoTrue
+      // para credenciales inválidas. No se debe usar la función como un login
+      // alterno para errores de red, configuración o cuentas bloqueadas.
+      if (!_isInvalidCredentials(error)) rethrow;
+    }
+
+    try {
+      final response = await _client.functions.invoke(
+        'legacy-mobile-login',
+        body: {'email': email, 'password': password},
+      );
+      final body = response.data;
+      if (body is! Map || body['migrated'] != true) {
+        throw const LegacyMigrationException();
+      }
+      // La función nunca entrega tokens: la sesión se obtiene únicamente de
+      // GoTrue mediante este segundo inicio de sesión.
+      return await _from(
+        await _client.auth.signInWithPassword(email: email, password: password),
+      );
+    } on LegacyMigrationException {
+      rethrow;
+    } on AuthException {
+      // La migración se completó pero GoTrue no pudo iniciar sesión. No se
+      // expone el motivo ni se convierte este flujo en un enumerador de emails.
+      throw const LegacyMigrationException();
+    } on FunctionException {
+      throw const LegacyMigrationException();
+    }
+  }
+
+  bool _isInvalidCredentials(AuthException error) =>
+      error.code == 'invalid_credentials' ||
+      error.message.toLowerCase().contains('invalid login credentials');
   Future<AuthSession> register({
     required String name,
     required String email,
@@ -71,4 +108,14 @@ class AuthService {
       ),
     );
   }
+}
+
+/// Mensaje deliberadamente genérico: los detalles quedan en los logs seguros
+/// de la Edge Function, asociados a su identificador de correlación.
+class LegacyMigrationException implements Exception {
+  const LegacyMigrationException();
+
+  @override
+  String toString() =>
+      'No fue posible iniciar sesión con ese correo o contraseña. Si el problema continúa, contacta a soporte.';
 }
