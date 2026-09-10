@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/auth_controller.dart';
+import '../services/auth_service.dart';
 import '../theme/willpig_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -17,7 +18,7 @@ class _LoginPageState extends State<LoginPage> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _isRegistering = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -48,9 +49,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   String _messageFor(Object error) {
+    if (error is LegacyMigrationException) return error.toString();
     if (error is AuthException) return error.message;
     if (error is StateError) return error.message.toString();
-    return 'No fue posible conectar con Supabase. Verifica tu conexión e inténtalo de nuevo.';
+    return 'No fue posible conectar con la plataforma. Verifica tu conexión e inténtalo de nuevo.';
   }
 
   @override
@@ -88,8 +90,8 @@ class _LoginPageState extends State<LoginPage> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: WillpigColors.primarySalmon.withOpacity(
-                                0.1,
+                              color: WillpigColors.primarySalmon.withValues(
+                                alpha: 0.1,
                               ),
                               shape: BoxShape.circle,
                             ),
@@ -154,18 +156,29 @@ class _LoginPageState extends State<LoginPage> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _password,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
-                          labelText: 'Contraseña',
-                          prefixIcon: Icon(Icons.lock_outline, size: 20),
+                        TextFormField(
+                          controller: _password,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            prefixIcon: Icon(Icons.lock_outline, size: 20),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.white70,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                          obscureText: _obscurePassword,
+                          validator: (v) => (v?.length ?? 0) >= 8
+                              ? null
+                              : 'Mínimo 8 caracteres',
                         ),
-                        obscureText: true,
-                        validator: (v) => (v?.length ?? 0) >= 8
-                            ? null
-                            : 'Mínimo 8 caracteres',
-                      ),
                       const SizedBox(height: 24),
                       if (_errorMessage != null) ...[
                         Container(
@@ -174,12 +187,14 @@ class _LoginPageState extends State<LoginPage> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: WillpigColors.danger.withOpacity(0.12),
+                            color: WillpigColors.danger.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(
                               WillpigColors.radiusSm,
                             ),
                             border: Border.all(
-                              color: WillpigColors.danger.withOpacity(0.3),
+                              color: WillpigColors.danger.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                           ),
                           child: Semantics(
